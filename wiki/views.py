@@ -1,26 +1,68 @@
-from django.shortcuts import render
-from django.http import HttpResponse
-from django.template import RequestContext, loader
+from django.shortcuts import render, get_object_or_404
+from django.http import HttpResponseRedirect
+from django.core.urlresolvers import reverse
+from django.views import generic
 
-from .models import Question
+from .models import Question, Choice
 
 # Create your views here.
 
 
-def index(request):
-	latest_question_list = Question.objects.order_by('-pub_date')[:5]
-	template = loader.get_template('wiki/index.html')
-	context = RequestContext(request,{
-		'latest_question_list': latest_question_list,
-		})
-	return HttpResponse(template.render(context))
+class IndexView(generic.ListView):
+    template_name = 'wiki/index.html'
+    context_object_name = 'latest_question_list'
 
-def detail(request, question_id):
-    return HttpResponse("Estas viendo la pregunta %s." % question_id)
+    def get_queryset(self):
+        """Return the last five published questions."""
+        return Question.objects.order_by('-pub_date')[:5]
 
-def results(request, question_id):
-    response = "Estas viendo el resultado de la pregunta %s."
-    return HttpResponse(response % question_id)
+
+class DetailView(generic.DetailView):
+    model = Question
+    template_name = 'wiki/detail.html'
+
+
+class ResultsView(generic.DetailView):
+    model = Question
+    template_name = 'wiki/results.html'
+
 
 def vote(request, question_id):
-    return HttpResponse("Estas votando en la pregunta %s." % question_id)
+    p = get_object_or_404(Question, pk=question_id)
+    try:
+        selected_choice = p.choice_set.get(pk=request.POST['choice'])
+    except (KeyError, Choice.DoesNotExist):
+        return render(request, 'wiki/detail.html', {
+            'question': p,
+            'error_message': "You didnt select a choice.", })
+    else:
+        selected_choice.votes += 1
+        selected_choice.save()
+        return HttpResponseRedirect(reverse('wiki:results', args=(p.id,)))
+
+
+
+################# Primera parte del tutorial las vistas sin usar generic views #####################
+#
+# def index(request):
+#     latest_question_list = Question.objects.order_by('-pub_date')[:5]
+#     context = {'latest_question_list': latest_question_list}
+#     return render(request, 'wiki/index.html', context)
+
+
+# def detail(request, question_id):
+#     # try:
+#     #     question = Question.objects.get(pk=question_id)
+#     # except Question.DoesNotExist:
+#     #     raise Http404("Question does not exist")
+#     # return render(request, 'wiki/detail.html', {'question': question})
+#     question = get_object_or_404(Question, pk=question_id)
+#     return render(request, 'wiki/detail.html', {'question': question})
+
+
+# def results(request, question_id):
+#     question = get_object_or_404(Question, pk=question_id)
+#     return render(request, "wiki/results.html", {'question': question})
+
+
+
